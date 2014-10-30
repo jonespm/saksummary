@@ -52,16 +52,19 @@ Todo: <ul>
 <b>This form doesn't actually work *yet*. I also have some concerns about large numbers of results.</b>
 -->
 
-<?
+<?php
 $sr = $_GET['sr'];
-if (!$sr)
-$sr = 100000;
 $er = $_GET['er'];
 if (!$er)
-$er = "HEAD";
+	$er = "HEAD";
 $tag = $_GET['tag'];
 if (!$tag)
 $tag = "/svn/assignment/trunk/";
+if (!$sr) 
+	$sr = "HEAD";
+
+
+
 #Append svn to tag if they just put the branch
     if ($tag) {
         if (!preg_match("/(svn|contrib)/",$tag)) {
@@ -72,10 +75,10 @@ $tag = "/svn/assignment/trunk/";
 $format = $_GET['format'];
 ?>
 <form method=get>
-Sakai SVN URL: https://source.sakaiproject.org<input type=text name="tag" value="<?echo $tag?>">
-Start Revision: <input type=text name="sr" value="<?echo $sr?>">
-End Revision: <input type=text name="er" value="<?echo $er?>">
-Output Format: <select name="format"><option <?if ($format =="HTML") echo "selected"?>>HTML</option><option <?if ($format =="rwiki") echo "selected"?>>rwiki</option></select>
+Sakai SVN URL: https://source.sakaiproject.org<input type=text name="tag" value="<?php echo $tag?>">
+Start Revision: <input type=text name="sr" value="<?php echo $sr ?>">
+End Revision: <input type=text name="er" value="<?php echo $er ?>">
+Output Format: <select name="format"><option <?php if ($format =="HTML") echo "selected" ?>>HTML</option><option <?php if ($format =="rwiki") echo "selected"?>>rwiki</option></select>
 <input type=submit value="Get these changes">
 </form>
 <?php
@@ -121,11 +124,13 @@ class SakSummary {
     public $authors;
     public $types;
     public $maxlogs;
+    public $ignoremsub;
 
     public function __construct($cachetime = 600, $maxlogs=500) {
         $this->cache = new Sabre_Cache_Generic;
         $this->cachetime=$cachetime;
         $this->maxlogs=$maxlogs;
+	$this->ignoremsub=true;
     }
 
     function getSAKS($url, $startrev, $endrev) {
@@ -144,13 +149,16 @@ class SakSummary {
 		$endrev=SVN_REVISION_HEAD;
 	if (!is_numeric($startrev)) 
 		$startrev=SVN_REVISION_HEAD;
-        $logs= svn_log($url, $startrev, $endrev, $maxlogs, SVN_DISCOVER_CHANGED_PATHS);
-        $total_logs=count($logs);
-        print " Found $total_logs items";
+        $logs= svn_log($url, $startrev, $endrev, $this->maxlogs, SVN_DISCOVER_CHANGED_PATHS);
         #Look at each log [msg] to see if it has a SAK in it
         $this->authors = array();
         foreach ($logs as $log) {
-            preg_match_all("/(UMICH|KNL|SAK|EVALSYS|ASSN).\d+/",$log['msg'], $matches);
+            preg_match_all("/(UMICH|KNL|SAM|SAK|EVALSYS|ASSN).\d+/",$log['msg'], $matches);
+	    foreach ($log['paths'] as $path) {
+		    if ($this->ignoremsub == true && strstr($path['path'],"msub")) {
+			    continue 2;
+		    }
+	    }
             $retval[$log['rev']]['sak'] = $matches[0];
             //Need to convert /n to <br>
             $message = nl2br($log['msg']);
@@ -159,6 +167,8 @@ class SakSummary {
             #Maybe return other things?
         }
 
+        $total_logs=count($this->authors);
+        print " Found $total_logs items";
         $this->cache->store("$url-$startrev-$endrev",$retval,$this->cachetime);
         return $retval;
     }
@@ -170,6 +180,7 @@ class SakSummary {
         }
         $jira = "http://jira.sakaiproject.org/si/jira.issueviews:issue-xml";
         #Do some validation on $sak variable or a try/catch?
+	
         if ($cacheval = $this->cache->fetch("JIRA::$sak")) {
             return $cacheval;
         }
@@ -221,7 +232,7 @@ class SakSummary {
                     //http://www.webdeveloper.com/forum/showthread.php?t=190761
                     $col = preg_replace("#\<a.+href\=[\"|\'](.+)[\"|\'].*\>(.*)\<\/a\>#U","{link:$2|$1}",$col); 
                     //Fix links like [] that are SAK's
-                    $col = preg_replace("/\[((?:UMICH|SAK|KNL|EVALSYS|ASSN)-\d+)\]/"," {link:$1|http://jira.sakaiproject.org/browse/$1} ",$col);
+                    $col = preg_replace("/\[((?:UMICH|SAK|SAM|KNL|EVALSYS|ASSN)-\d+)\]/"," {link:$1|http://jira.sakaiproject.org/browse/$1} ",$col);
                     //Remove images for now, needs to be stored in the local system to be displayed
                     $col=preg_replace("/<img (.*)>/", "",$col);
                     $ret.="$col|";
@@ -235,7 +246,7 @@ class SakSummary {
 
     function genSummary() {
         #Some statistics perhaps in a separate function? 
-        $ret.= "<br>Commits by author:<br>";
+        $ret= "<br>Commits by author:<br>";
         $authors = array_count_values($this->authors);
         arsort($authors);
         foreach ($authors as $key=>$value) {
@@ -362,7 +373,6 @@ class SakSummary {
 //These will be where the form is pulled from
 gentime();
 $saksummary = new SakSummary(3600);
-//$saksummary = new SakSummary(5);
 //print $saksummary->displaySAKTable("https://source.sakaiproject.org/svn/site-manage/branches/sakai_2-6-x",66560,69901);
 
 if ($sr && $er && $tag) {
