@@ -307,7 +307,7 @@ class SakSummary {
         foreach ($saks as $revision => $sak) {
             $jira = $this->getJira($sak['sak'][0]);
             //Try catch needed here
-            if (strpos($jira,"<html>")!==FALSE) {
+            if (strpos($jira,"<html")!==FALSE) {
                 $item = array($this->revisionLink($revision),"<span class='security'>Security issue<br>".$this->jiraLink($sak['sak'][0])."</span>",$sak['msg']);
 
             }
