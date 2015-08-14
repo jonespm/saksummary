@@ -24,6 +24,7 @@ location ~ \.php$ {
 }
 ```
 
-`service php5-fpm restart`
+`service php5-fpm reload`
+`service nginx reload`
 
 Rememeber to check the error logs!
